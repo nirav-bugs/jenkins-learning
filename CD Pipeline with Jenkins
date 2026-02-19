@@ -63,4 +63,15 @@ pipeline {
             }
         }
     }
+     post {
+        success {
+            echo "Build successful! You can send notifications or trigger other jobs here."
+        }
+        failure {
+            echo "Build failed! Investigate logs and fix the issues."
+        }
+        always {
+            echo "This will run regardless of build status (cleanup, notifications, etc.)"
+        }
+    }
 }
