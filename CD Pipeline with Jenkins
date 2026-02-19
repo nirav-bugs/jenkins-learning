@@ -1,0 +1,66 @@
+pipeline {
+    agent any
+
+    environment {
+        TAG = "${BUILD_NUMBER}"
+        IMAGE = 'docker.io/<your-dockerhub-username>/<your-image-name>'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    credentialsId: 'GIT_CREDENTIALS_ID',
+                    poll: false,
+                    url: 'https://github.com/<your-username>/<your-repo>.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" .'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'DOCKERHUB_CREDENTIALS_ID',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+
+                    sh 'echo "Logging in to Docker Hub..."'
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                    sh 'docker push "$IMAGE:$TAG"'
+                    sh 'docker push "$IMAGE:latest"'
+                }
+            }
+        }
+
+        stage('Deploy Container') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'DOCKERHUB_CREDENTIALS_ID',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+
+                    sh 'echo "Logging in to Docker Hub..."'
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                    sh 'docker pull "$IMAGE:$TAG"'
+                    sh 'docker rm -f "<container-name>" || true'
+                    sh 'docker run -d --name "<container-name>" -p 5000:5000 "$IMAGE:$TAG"'
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'sleep 2'
+                sh 'echo "Application should be running at http://localhost:5000"'
+            }
+        }
+    }
+}
